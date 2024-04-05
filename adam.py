@@ -7,6 +7,7 @@ from gymnasium.wrappers import GrayScaleObservation
 
 from matplotlib import pyplot as plt
 from collections import deque, namedtuple
+import cv2
 
 import torch
 import torch.nn as nn
@@ -24,14 +25,14 @@ epsilon_d = 0.99
 replay_buffer_size = 10000
 batch_size = 32
 learning_rate = 0.01
-frame_stack = 4
+# frame_stack = 4
+# Use num_lives to reset after each life (maybe)
+num_lives = 4
 
 
-
-env = gym.make("ALE/Assault-v5", render_mode='human')
-env = GrayScaleObservation(env)
-env = FrameStack(env, frame_stack)
-states = env.observation_space.shape[0]
+env = gym.make("ALE/Assault-v5", render_mode='rgb_array')
+env = GrayScaleObservation(env, keep_dim=True)
+states = env.observation_space.shape
 actions = env.action_space.n
 # observation_space = Box(0, 255, (4, 210, 160), uint8)
 
@@ -43,7 +44,7 @@ class AssaultNet(nn.Module):
     self.num_actions = num_actions
 
     self.conv1 = nn.Conv2d(
-      in_channels=num_frames,
+      in_channels=1,
       out_channels=32,
       kernel_size=8,
       stride=4,
@@ -67,15 +68,18 @@ class AssaultNet(nn.Module):
 
   def _get_flatten_size(self, input_channels):
     with torch.no_grad():
-      fake_input = torch.zeros((1, input_channels, 210, 160))
+      fake_input = torch.zeros((1, 1, 84, 84))
       fake_output = self.conv2(self.conv1(fake_input))
       return fake_output.view(-1).size(0)
   
   def forward(self, x):
 
     x = self.relu(self.conv1(x))
+    # print(np.array(x).shape)
     x = self.relu(self.conv2(x))
+    # print(np.array(x).shape)
     x = x.view(-1, self.flatten_size)
+    # print(np.array(x).shape)
     x = self.relu(self.fc1(x))
     x = self.fc2(x)
     return x
@@ -101,29 +105,35 @@ class Agent:
     self.device = torch.device("cuda" if self.cuda else "cpu")
     model.to(self.device)
     
-    
+  @staticmethod
+  def _process_obs(obs):
+    obs = cv2.resize(obs, (84, 84), interpolation=cv2.INTER_AREA)
+    obs = obs[:, :, np.newaxis]
+    obs = obs.transpose((2, 0, 1))
+    return obs
+
   def select_action(self, state):
     if np.random.rand() < self.epsilon_i:
       return env.action_space.sample()
     else:
       with torch.no_grad():
-        q_values = self.model(torch.tensor(state, dtype=torch.float32).unsqueeze(0))
+        q_values = self.model(torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device))
         return q_values.argmax().item()
 
   def train(self, num_episodes):
     for episode in range(num_episodes):
-      print(episode)
-      state = env.reset()
+      state, info = env.reset()
+      state = self._process_obs(np.array(state))
       episode_reward = 0
       terminated = False
       while not terminated:
         action = self.select_action(state)
         next_state, reward, terminated, truncated, info = env.step(action)
-        print(episode_reward)
-        print(info['lives'])
+        next_state = self._process_obs(np.array(next_state))
+        # print(episode_reward)
+        # print(info['lives'])
         episode_reward += reward
-        if np.array(state).shape == (4, 210, 160):
-          self.memory.append((np.array(state), action, reward, np.array(next_state), terminated))
+        self.memory.append((np.array(state), action, reward, np.array(next_state), terminated))
         state = next_state
 
         if len(self.memory) >= self.batch_size:
@@ -134,25 +144,32 @@ class Agent:
       if episode % self.target_update == 0:
         self.target_model.load_state_dict(self.model.state_dict())
 
-      print(f"Episode: {episode}, Reward: {episode_reward}")
+      print(f"Episode: {episode}, Reward: {episode_reward}, Epsilon: {epsilon_i}")
+    
+    torch.save(self.model.state_dict(), "assault_DQN_CNN_1T.pt")
 
   def update_model(self):
     batch = np.random.choice(len(self.memory), self.batch_size, replace=False)
     states, actions, rewards, next_states, dones = zip(*[self.memory[i] for i in batch])
     states = np.array(states)
     states = torch.tensor(states, dtype=torch.float32)
-    # print("Shape of states after tensor conversion:", states.shape)
-    actions = torch.tensor(actions)
-    rewards = torch.tensor(rewards, dtype=torch.float32)
     next_states = np.array(next_states)
     next_states = torch.tensor(next_states, dtype=torch.float32)
+
+    actions = torch.tensor(actions)
+    rewards = torch.tensor(rewards, dtype=torch.float32, requires_grad=True)
     dones = torch.tensor(dones, dtype=torch.float32)
 
-    q_values = self.model(states)
-    next_q_values = self.target_model(next_states).max(1)[0].detach()
+    with torch.no_grad():
+      q_values = self.model(states)
+      next_q_values = self.target_model(next_states).max(1)[0].detach()
+    
     target_q_values = rewards + (1 - dones) * self.gamma * next_q_values
-
     selected_q_values = q_values.gather(1, actions.unsqueeze(1))
+
+    # print("q_values.requires_grad:", q_values.requires_grad)
+    # print("actions.requires_grad:", actions.requires_grad)
+    # print("selected_q_values.requires_grad:", selected_q_values.requires_grad)
 
     loss = F.smooth_l1_loss(selected_q_values, target_q_values.unsqueeze(1))
 
@@ -160,9 +177,9 @@ class Agent:
     loss.backward()
     self.optimizer.step()
 
-model = AssaultNet(frame_stack, actions)
+model = AssaultNet(1, actions)
 agent = Agent(model, target_update, learning_rate, gamma, epsilon_i, epsilon_f, epsilon_d, batch_size)
-agent.train(10)
+agent.train(1000)
 
 
 # After training, you can evaluate the performance of the trained agent
@@ -182,4 +199,4 @@ def evaluate_agent(agent, num_episodes=3):
     print(f"Average reward over {num_episodes} episodes: {average_reward}")
 
 # Evaluate the trained agent
-evaluate_agent(agent)
+# evaluate_agent(agent)
