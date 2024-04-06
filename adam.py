@@ -21,7 +21,7 @@ target_update = 1000
 gamma = 0.99
 epsilon_i = 1.0
 epsilon_f = 0.01
-epsilon_d = 0.99
+epsilon_d = 0.995
 replay_buffer_size = 10000
 batch_size = 32
 learning_rate = 0.01
@@ -62,6 +62,10 @@ class AssaultNet(nn.Module):
     )
     self.fc2 = nn.Linear(
       in_features=512,
+      out_features=256
+    )
+    self.fc3 = nn.Linear(
+      in_features=256,
       out_features=num_actions
     )
     self.relu = nn.ReLU()
@@ -81,7 +85,8 @@ class AssaultNet(nn.Module):
     x = x.view(-1, self.flatten_size)
     # print(np.array(x).shape)
     x = self.relu(self.fc1(x))
-    x = self.fc2(x)
+    x = self.relu(self.fc2(x))
+    x = self.fc3(x)
     return x
 
 class Agent:
@@ -117,7 +122,7 @@ class Agent:
       return env.action_space.sample()
     else:
       with torch.no_grad():
-        q_values = self.model(torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device))
+        q_values = self.model(torch.tensor(np.array(state), dtype=torch.float32).unsqueeze(0).to(self.device))
         return q_values.argmax().item()
 
   def train(self, num_episodes):
@@ -138,13 +143,16 @@ class Agent:
 
         if len(self.memory) >= self.batch_size:
           self.update_model()
+        
+        if len(self.memory) > 1000:
+          self.memory = []
       
       self.epsilon_i = max(self.epsilon_f, self.epsilon_i * self.epsilon_d)
 
       if episode % self.target_update == 0:
         self.target_model.load_state_dict(self.model.state_dict())
 
-      print(f"Episode: {episode}, Reward: {episode_reward}, Epsilon: {epsilon_i}")
+      print(f"Episode: {episode}, Reward: {episode_reward}, Epsilon: {self.epsilon_i}")
     
     torch.save(self.model.state_dict(), "assault_DQN_CNN_1T.pt")
 
@@ -176,10 +184,18 @@ class Agent:
     self.optimizer.zero_grad()
     loss.backward()
     self.optimizer.step()
+  
+  def save_model(self):
+    torch.save(self.target_model.state_dict(), 'target_model.pth')
+  
+  def load_model(self):
+    self.model.load_state_dict(torch.load('target_model.pth'))
+    model.eval()
 
 model = AssaultNet(1, actions)
 agent = Agent(model, target_update, learning_rate, gamma, epsilon_i, epsilon_f, epsilon_d, batch_size)
 agent.train(1000)
+agent.save_model()
 
 
 # After training, you can evaluate the performance of the trained agent
