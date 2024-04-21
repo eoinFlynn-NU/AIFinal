@@ -232,20 +232,25 @@ class Agent:
     self.model.load_state_dict(torch.load(name))
     self.model.eval()
 
-model = AssaultNet(1, actions)
-agent = Agent(model, target_update, learning_rate, gamma, epsilon_i, epsilon_f, epsilon_d, batch_size)
-agent.train(500)
-agent.save_model('assault_model_with_target_fix500.pth')
+
+def train_model(num_episodes, save_model_file):
+  model = AssaultNet(1, actions)
+  agent = Agent(model, target_update, learning_rate, gamma, epsilon_i, epsilon_f, epsilon_d, batch_size)
+  agent.train(num_episodes)
+  agent.save_model(save_model_file)
 
 
-with open('assault_data_target_model_fixed.csv', mode='w') as asteroid_file:
-  asteroid_writer = csv.writer(asteroid_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-  asteroid_writer.writerow(['Episode', 'Reward', 'Epsilon'])
-  for i in range(len(episodes_list)):
-    asteroid_writer.writerow([episodes_list[i], rewards_list[i], epsilon_list[i]])
+# with open('assault_data_target_model_fixed.csv', mode='w') as asteroid_file:
+#   asteroid_writer = csv.writer(asteroid_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+#   asteroid_writer.writerow(['Episode', 'Reward', 'Epsilon'])
+#   for i in range(len(episodes_list)):
+#     asteroid_writer.writerow([episodes_list[i], rewards_list[i], epsilon_list[i]])
 
 # After training, you can evaluate the performance of the trained agent
-def evaluate_agent(agent, num_episodes=50):
+def evaluate_agent(load_file_name, num_episodes=50):
+    model = AssaultNet(1, actions)
+    agent = Agent(model, target_update, learning_rate, gamma, epsilon_i, epsilon_f, epsilon_d, batch_size)
+    agent.load_model(load_file_name)
     total_rewards = []
     global epsilon_i
     epsilon_i = 0
