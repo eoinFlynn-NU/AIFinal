@@ -14,11 +14,11 @@ def main():
   parser.add_argument('--load_file_name', type=str, default='assault_model.pth', help='File name to load the trained model')
   args = parser.parse_args()
 
-if args.env == 'assault':
-  if args.mode == 'train':
-    train_assault_agent(args.num_episodes, args.save_file_name)
-  elif args.mode == 'evaluate':
-    evaluate_assault_agent(args.load_file_name, args.num_eval_episodes)
+  if args.env == 'assault':
+    if args.mode == 'train':
+      train_assault_agent(args.num_episodes, args.save_file_name)
+    elif args.mode == 'evaluate':
+      evaluate_assault_agent(args.load_file_name, args.num_eval_episodes)
 
 
 if __name__ == "__main__":
