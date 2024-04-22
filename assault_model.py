@@ -13,7 +13,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import csv
 
-#from torchviz import make_dot
+
 
 # Hyperparameters
 num_episodes = 1000
@@ -34,13 +34,14 @@ episodes_list = []
 rewards_list = []
 epsilon_list = []
 
-
+#sets up the environment
 env = gym.make("ALE/Assault-v5", render_mode='rgb_array')
 env = GrayScaleObservation(env, keep_dim=True)
 states = env.observation_space.shape
 actions = env.action_space.n
 # observation_space = Box(0, 255, (4, 210, 160), uint8)
 
+# Define the neural network
 class AssaultNet(nn.Module):
 
   def __init__(self, num_frames, num_actions):
@@ -94,6 +95,7 @@ class AssaultNet(nn.Module):
     x = self.fc3(x)
     return x
 
+# Define the agent
 class Agent:
   def __init__(self, model, target_update, learning_rate, gamma, epsilon_i, epsilon_f, epsilon_d, batch_size):
     self.model = model
@@ -115,6 +117,7 @@ class Agent:
     self.device = torch.device("cuda" if self.cuda else "cpu")
     model.to(self.device)
     
+  # Preprocess the observation to a 84x84 grayscale image
   @staticmethod
   def _process_obs(obs):
     obs = cv2.resize(obs, (84, 84), interpolation=cv2.INTER_AREA)
@@ -122,10 +125,12 @@ class Agent:
     obs = obs.transpose((2, 0, 1))
     return obs
 
+  # Crop the frame to remove the score and other irrelevant information
   def _crop_frame(self, obs):
     obs = obs[40:-20, :, :]
     return obs
 
+  # Select an action based on the epsilon-greedy policy
   def select_action(self, state):
     if np.random.rand() < self.epsilon_i:
       return env.action_space.sample()
@@ -134,6 +139,7 @@ class Agent:
         q_values = self.model(torch.tensor(np.array(state), dtype=torch.float32).unsqueeze(0).to(self.device))
         return q_values.argmax().item()
 
+  # Train the agent
   def train(self, num_episodes):
     frame_count = 0
     for episode in range(num_episodes):
@@ -192,6 +198,7 @@ class Agent:
       rewards_list.append(episode_reward)
     #torch.save(self.model.state_dict(), "assault_DQN_CNN_1T.pt")
 
+  # Update the model using a batch processing
   def update_model(self):
     batch = np.random.choice(len(self.memory), self.batch_size, replace=False)
     #batch = range(len(self.memory))
@@ -222,14 +229,16 @@ class Agent:
     loss.backward()
     self.optimizer.step()
   
+  # Save the model to a file
   def save_model(self, name):
     torch.save(self.target_model.state_dict(), name)
   
+  # Load the model from a file
   def load_model(self, name):
     self.model.load_state_dict(torch.load(name))
     self.model.eval()
 
-
+# Train the agent
 def train_assault_agent(num_episodes, save_model_file):
   model = AssaultNet(1, actions)
   agent = Agent(model, target_update, learning_rate, gamma, epsilon_i, epsilon_f, epsilon_d, batch_size)
@@ -237,13 +246,8 @@ def train_assault_agent(num_episodes, save_model_file):
   agent.save_model(save_model_file)
 
 
-# with open('assault_data_target_model_fixed.csv', mode='w') as asteroid_file:
-#   asteroid_writer = csv.writer(asteroid_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-#   asteroid_writer.writerow(['Episode', 'Reward', 'Epsilon'])
-#   for i in range(len(episodes_list)):
-#     asteroid_writer.writerow([episodes_list[i], rewards_list[i], epsilon_list[i]])
 
-# After training, you can evaluate the performance of the trained agent
+# Evaluate the agent's performance
 def evaluate_assault_agent(load_file_name, num_episodes=20):
     model = AssaultNet(1, actions)
     epsilon_i = 0
