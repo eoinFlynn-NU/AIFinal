@@ -28,14 +28,14 @@ batch_size = 32
 learning_rate = 0.01
 
 # Use render_mode='human' for eval, render_mode='rgb_array' for training
-env = gym.make("ALE/SpaceInvaders-v5", render_mode='human', frameskip=1)
+env = gym.make("ALE/Freeway-v5", render_mode='human', frameskip=1)
 env = AtariPreprocessing(env=env, noop_max=30, grayscale_newaxis=True, grayscale_obs=True, screen_size=84)
 states = env.observation_space.shape
 actions = env.action_space.n
 
-class SpaceInvadersNet(nn.Module):
+class FreewayNet(nn.Module):
   def __init__(self, num_frames, num_actions):
-    super(SpaceInvadersNet, self).__init__()
+    super(FreewayNet, self).__init__()
     self.num_frames = num_frames
     self.num_actions = num_actions
 
@@ -120,7 +120,6 @@ class Agent:
     # train for num_episodes
     for episode in range(num_episodes):
       state, info = env.reset()
-      self.lives = info['lives']
       state = self._process_obs(np.array(state))
       episode_reward = 0
       terminated = False
@@ -129,7 +128,16 @@ class Agent:
         # choose an action with epsilon greedy
         action = self.select_action(state)
         next_state, reward, terminated, truncated, info = env.step(action)
-        step += 1
+        steps += 1
+
+        # scale reward for reaching end of freeway
+        if reward != 0:
+          reward = 2000
+
+        # give small reward for moving "up"
+        if action == 1:
+          reward += 1
+
         next_state = self._process_obs(np.array(next_state))
         episode_reward += reward
 
@@ -148,19 +156,17 @@ class Agent:
           self.target_model.load_state_dict(self.model.state_dict())
           steps = 0
       
-      # decary epsilon
+      # decay epsilon
       self.epsilon_i = max(self.epsilon_f, self.epsilon_i * self.epsilon_d)
       
       epsilons.append(self.epsilon_i)
       rewards.append(episode_reward)
 
-      
-
       print(f"Episode: {episode}, Reward: {episode_reward}, Epsilon: {self.epsilon_i}")
     
     # Uncomment to save reward + epsilon values from training to csv files
-    # np.savetxt("si_rewards.csv", np.asarray(rewards), delimiter=",")
-    # np.savetxt("si_epsilons.csv", np.asarray(epsilons), delimiter=",")
+    # np.savetxt("fw_rewards.csv", np.asarray(rewards), delimiter=",")
+    # np.savetxt("fw_epsilons.csv", np.asarray(epsilons), delimiter=",")
 
   def update_model(self):
     # choose batch of experiences and convert to tensors
@@ -196,14 +202,14 @@ class Agent:
     self.model.load_state_dict(torch.load('si_DQN_CNN_2T_science.pt'))
     model.eval()
 
-model = SpaceInvadersNet(1, actions)
+model = FreewayNet(1, actions)
 agent = Agent(model, target_update, learning_rate, gamma, epsilon_i, epsilon_f, epsilon_d, batch_size)
 # agent.train(2000)
 # agent.save_model()
 
 # After training, you can evaluate the performance of the trained agent
 def evaluate_agent(num_episodes, weight_file):
-    model = SpaceInvadersNet(1, actions)
+    model = FreewayNet(1, actions)
     model.load_state_dict(torch.load(weight_file))
     model.eval()
     rewards = []
