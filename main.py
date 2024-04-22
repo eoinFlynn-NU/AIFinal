@@ -18,16 +18,16 @@ def main():
       train_assault_agent(args.episodes, args.save_file_name)
     elif args.mode == 'evaluate':
       evaluate_assault_agent(args.load_file_name, args.episodes)
-  if args.env == 'freeway':
-    if args.mode == 'train':
-      train_freeway_agent(args.episodes, args.save_file_name)
-    elif args.mode == 'evaluate':
-      evaluate_freeway_agent(args.load_file_name, args.episodes)
-  if args.env == 'space_invaders':
-    if args.mode == 'train':
-      train_space_invaders_agent(args.episodes, args.save_file_name)
-    elif args.mode == 'evaluate':
-      evaluate_space_invaders_agent(args.load_file_name, args.episodes)
+  # if args.env == 'freeway':
+  #   if args.mode == 'train':
+  #     train_freeway_agent(args.episodes, args.save_file_name)
+  #   elif args.mode == 'evaluate':
+  #     evaluate_freeway_agent(args.load_file_name, args.episodes)
+  # if args.env == 'space_invaders':
+  #   if args.mode == 'train':
+  #     train_space_invaders_agent(args.episodes, args.save_file_name)
+  #   elif args.mode == 'evaluate':
+  #     evaluate_space_invaders_agent(args.load_file_name, args.episodes)
 
 
 if __name__ == "__main__":

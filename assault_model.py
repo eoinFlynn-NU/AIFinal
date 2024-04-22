@@ -1,12 +1,10 @@
-import random
+
 import numpy as np
 
 import gymnasium as gym
 from gymnasium.wrappers import FrameStack
 from gymnasium.wrappers import GrayScaleObservation
 
-from matplotlib import pyplot as plt
-from collections import deque, namedtuple
 import cv2
 
 import torch
@@ -14,9 +12,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import csv
-from copy import deepcopy
 
-from torchviz import make_dot
+#from torchviz import make_dot
 
 # Hyperparameters
 num_episodes = 1000
@@ -275,12 +272,3 @@ def evaluate_assault_agent(load_file_name, num_episodes=20):
     print(f"Average reward over {num_episodes} episodes: {average_reward}")
 
 
-# model = AssaultNet(1, actions)
-# agent = Agent(model, target_update, learning_rate, gamma, epsilon_i, epsilon_f, epsilon_d, batch_size)
-# agent.load_model("assault_trained_model_with_overheat1000.pth")
-# evaluate_agent(agent)
-
-
-
-# Evaluate the trained agent
-# evaluate_agent(agent)
