@@ -23,5 +23,5 @@ training example:
 $ python main.py assault train --episodes 1000 --file_name test_model.pth
 
 evaluating example:
-$ python main.py freeway evaluate --episodes 30 --file_name ./trained_weights/freeway_1T.pth
+$ python main.py space_invaders evaluate --episodes 30 --file_name ./trained_weights/space_invaders_10T.pth
 ```
