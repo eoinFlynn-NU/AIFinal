@@ -28,7 +28,7 @@ batch_size = 32
 learning_rate = 0.01
 
 # Use render_mode='human' for eval, render_mode='rgb_array' for training
-env = gym.make("ALE/Freeway-v5", render_mode='human', frameskip=1)
+env = gym.make("ALE/Freeway-v5", render_mode='rgb_array', frameskip=1)
 env = AtariPreprocessing(env=env, noop_max=30, grayscale_newaxis=True, grayscale_obs=True, screen_size=84)
 states = env.observation_space.shape
 actions = env.action_space.n
@@ -195,20 +195,21 @@ class Agent:
     loss.backward()
     self.optimizer.step()
   
-  def save_model(self):
-    torch.save(self.target_model.state_dict(), 'fw_5H_science.pth')
+  def save_model(self, save_model_file):
+    torch.save(self.target_model.state_dict(), save_model_file)
   
-  def load_model(self):
-    self.model.load_state_dict(torch.load('si_DQN_CNN_2T_science.pt'))
+  def load_model(self, load_model_file):
+    self.model.load_state_dict(torch.load(load_model_file))
     model.eval()
 
 model = FreewayNet(1, actions)
 agent = Agent(model, target_update, learning_rate, gamma, epsilon_i, epsilon_f, epsilon_d, batch_size)
-# agent.train(2000)
-# agent.save_model()
+def train_freeway_agent(num_episodes, save_model_file):
+  agent.train(num_episodes)
+  agent.save_model(save_model_file)
 
 # After training, you can evaluate the performance of the trained agent
-def evaluate_agent(num_episodes, weight_file):
+def evaluate_freeway_agent(num_episodes, weight_file):
     model = FreewayNet(1, actions)
     model.load_state_dict(torch.load(weight_file))
     model.eval()
@@ -244,8 +245,8 @@ def evaluate_agent(num_episodes, weight_file):
         
         rewards.append(episode_reward)
         print(f"Episode: {episode}, Reward: {episode_reward}")
-    np.savetxt("trained_rewards.csv", np.asarray(rewards), delimiter=",")
+    #np.savetxt("trained_rewards.csv", np.asarray(rewards), delimiter=",")
     env.close()
 
-weight_file = '' # path to weight file for evaluation 
-evaluate_agent(50, weight_file)
+# weight_file = './trained_weights/freeway_1T.pth' # path to weight file for evaluation 
+# evaluate_freeway_agent(5, weight_file)
