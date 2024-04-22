@@ -27,15 +27,15 @@ replay_buffer_size = 1000
 batch_size = 32
 learning_rate = 0.01
 
-
+# Use render_mode='human' for eval, render_mode='rgb_array' for training
 env = gym.make("ALE/SpaceInvaders-v5", render_mode='human', frameskip=1)
 env = AtariPreprocessing(env=env, noop_max=30, grayscale_newaxis=True, grayscale_obs=True, screen_size=84)
 states = env.observation_space.shape
 actions = env.action_space.n
 
-class AssaultNet(nn.Module):
+class SpaceInvadersNet(nn.Module):
   def __init__(self, num_frames, num_actions):
-    super(AssaultNet, self).__init__()
+    super(SpaceInvadersNet, self).__init__()
     self.num_frames = num_frames
     self.num_actions = num_actions
 
@@ -117,6 +117,7 @@ class Agent:
   def train(self, num_episodes):
     rewards = []
     epsilons = []
+    # train for num_episodes
     for episode in range(num_episodes):
       state, info = env.reset()
       self.lives = info['lives']
@@ -125,10 +126,14 @@ class Agent:
       terminated = False
       steps = 0
       while not terminated:
+        # choose an action with epsilon greedy
         action = self.select_action(state)
         next_state, reward, terminated, truncated, info = env.step(action)
+        step += 1
         next_state = self._process_obs(np.array(next_state))
         episode_reward += reward
+
+        # add experience to replay memory
         self.memory.append((np.array(state), action, reward, np.array(next_state), terminated))
         state = next_state
 
@@ -138,10 +143,12 @@ class Agent:
         if len(self.memory) > 1000:
           self.memory = []
         
+        # update target network every {target_update} of frames
         if steps == self.target_update:
           self.target_model.load_state_dict(self.model.state_dict())
           steps = 0
       
+      # decary epsilon
       self.epsilon_i = max(self.epsilon_f, self.epsilon_i * self.epsilon_d)
       
       epsilons.append(self.epsilon_i)
@@ -152,10 +159,11 @@ class Agent:
       print(f"Episode: {episode}, Reward: {episode_reward}, Epsilon: {self.epsilon_i}")
     
     # Uncomment to save reward + epsilon values from training to csv files
-    # np.savetxt("si_science_rewards.csv", np.asarray(rewards), delimiter=",")
-    # np.savetxt("si_science_epsilons.csv", np.asarray(epsilons), delimiter=",")
+    # np.savetxt("si_rewards.csv", np.asarray(rewards), delimiter=",")
+    # np.savetxt("si_epsilons.csv", np.asarray(epsilons), delimiter=",")
 
   def update_model(self):
+    # choose batch of experiences and convert to tensors
     batch = np.random.choice(len(self.memory), self.batch_size, replace=False)
     states, actions, rewards, next_states, dones = zip(*[self.memory[i] for i in batch])
     states = np.array(states)
@@ -167,13 +175,14 @@ class Agent:
     rewards = torch.tensor(rewards, dtype=torch.float32, requires_grad=True)
     dones = torch.tensor(dones, dtype=torch.float32)
 
+    # update q values
     with torch.no_grad():
       q_values = self.model(states)
       next_q_values = self.target_model(next_states).max(1)[0].detach()
-    
     target_q_values = rewards + (1 - dones) * self.gamma * next_q_values
     selected_q_values = q_values.gather(1, actions.unsqueeze(1))
 
+    # compute loss and back propagate
     loss = F.smooth_l1_loss(selected_q_values, target_q_values.unsqueeze(1))
 
     self.optimizer.zero_grad()
@@ -187,14 +196,14 @@ class Agent:
     self.model.load_state_dict(torch.load('si_DQN_CNN_2T_science.pt'))
     model.eval()
 
-model = AssaultNet(1, actions)
+model = SpaceInvadersNet(1, actions)
 agent = Agent(model, target_update, learning_rate, gamma, epsilon_i, epsilon_f, epsilon_d, batch_size)
 # agent.train(2000)
 # agent.save_model()
 
 # After training, you can evaluate the performance of the trained agent
 def evaluate_agent(num_episodes, weight_file):
-    model = AssaultNet(1, actions)
+    model = SpaceInvadersNet(1, actions)
     model.load_state_dict(torch.load(weight_file))
     model.eval()
     rewards = []
